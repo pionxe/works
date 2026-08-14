@@ -1,0 +1,153 @@
+/* ============================================================
+   《夜航》—— 墨蓝 · 月华
+   深墨蓝底（非纯黑） · 月光白字 · 暖金点睛
+   意象：月华、夜海、水墨 —— 安静、深邃、书卷气
+   覆盖 PaperMod `core/theme-vars.css` 的 dark 变量
+   ============================================================ */
+
+:root[data-theme="dark"] {
+    --theme: #0f1520;            /* 深墨蓝底 */
+    --entry: #131b29;            /* 列表卡片，略亮于底 */
+    --primary: #dbe3ef;          /* 月光白 */
+    --secondary: #8a95a9;        /* 蓝灰次级字 */
+    --tertiary: #232e40;         /* 描边 / 分隔 */
+    --content: #c9d3e2;          /* 正文 */
+    --code-block-bg: #0a0f18;    /* 代码块：更深、高对比 */
+    --code-bg: #182235;          /* 行内代码 */
+    --border: #1d2840;           /* 边框 */
+    --accent: #c9a25c;           /* 暖金点睛 */
+    color-scheme: dark;
+}
+
+/* ---------- 字体 ---------- */
+:root {
+    --font-serif: "Noto Serif CJK SC", "Noto Serif SC", "Source Han Serif SC", "Songti SC", serif;
+    --font-sans:  "Noto Sans CJK SC", "Source Han Sans SC", system-ui, "PingFang SC", "Microsoft YaHei", sans-serif;
+    --font-mono:  "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, "Cascadia Code", Consolas, monospace;
+}
+
+body {
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.9;            /* 书页般的舒适行距 */
+    color: var(--primary);
+}
+
+/* 中文标题一律衬线（宋体），书卷气 */
+.logo,
+.post-title,
+h1, h2, h3, h4, h5, h6,
+.entry-header h2,
+.post-content h1, .post-content h2, .post-content h3, .post-content h4 {
+    font-family: var(--font-serif);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+/* 单篇正文：稍放大、行距更开，像读一本书 */
+.post-content {
+    font-size: 16.5px;
+    line-height: 1.95;
+}
+
+/* ---------- 点缀：暖金 ---------- */
+a { color: var(--primary); }
+
+.post-content a {
+    color: var(--primary);
+    border-bottom: 1px solid var(--accent);
+}
+.post-content a:hover {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+.entry-header h2 a:hover,
+h1 a:hover, h2 a:hover, h3 a:hover,
+.nav a:hover,
+.logo a:hover,
+.footer a:hover,
+.pagination a:hover {
+    color: var(--accent);
+}
+
+/* ---------- 首页 intro：一句月光，留白如画 ---------- */
+.list .post-content {
+    text-align: center;
+    font-family: var(--font-serif);
+    color: var(--secondary);
+    letter-spacing: 0.06em;
+    margin: 3.5rem auto 4.5rem;
+    max-width: 46em;
+}
+.list .post-content p {
+    line-height: 2.2;
+    margin-bottom: 0.9em;
+}
+
+/* ---------- 列表卡片：克制 ---------- */
+.post-entry {
+    background: var(--entry);
+    border-radius: 6px;
+    border: 1px solid transparent;
+    transition: border-color 0.25s ease;
+}
+.post-entry:hover {
+    border-color: var(--accent);
+}
+.post-entry .entry-header h2 { font-size: 1.05rem; }
+
+/* ---------- 代码：深色高对比，网安的正文 ---------- */
+.highlight,
+.highlight pre {
+    border-radius: 8px;
+}
+.highlight pre {
+    background: var(--code-block-bg);
+    padding: 1.1em 1.2em;
+    line-height: 1.7;
+    font-family: var(--font-mono);
+    font-size: 14px;
+}
+.highlight .chroma {
+    background: var(--code-block-bg);
+    color: #cad3f5;
+}
+/* 主题默认把 pre 内 code 压到 0.78em（~11px）太小，恢复成 pre 的字号 */
+.highlight pre code {
+    font-size: inherit;
+}
+code {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+}
+.post-content code { background: var(--code-bg); }
+
+/* ---------- 顶栏：安静 ---------- */
+.logo a {
+    color: var(--primary);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+}
+.nav a {
+    font-family: var(--font-sans);
+    font-size: 0.95rem;
+    color: var(--secondary);
+}
+.nav a:hover { color: var(--accent); }
+.nav .active { color: var(--primary); border-bottom: 1px solid var(--accent); }
+
+/* ---------- 页脚 ---------- */
+.footer {
+    color: var(--secondary);
+    font-size: 0.85rem;
+    letter-spacing: 0.04em;
+}
+.footer a { color: var(--secondary); }
+
+/* ---------- 引用块：像诗句 ---------- */
+.post-content blockquote {
+    border-left: 2px solid var(--accent);
+    color: var(--secondary);
+    font-family: var(--font-serif);
+}

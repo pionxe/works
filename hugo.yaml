@@ -1,0 +1,53 @@
+baseURL: "https://works.yuisui.workers.dev/"
+title: "夜航 · works"
+locale: "zh-CN"
+defaultContentLanguage: "zh"
+hasCJKLanguage: true
+enableRobotsTXT: true
+enableEmoji: true
+pygmentsUseClasses: true
+pagination:
+  pagerSize: 10
+
+theme: ["PaperMod"]
+
+menu:
+  main:
+    - identifier: home
+      name: 首页
+      url: /
+      weight: 10
+    - identifier: posts
+      name: 文章
+      url: /posts/
+      weight: 20
+    - identifier: archives
+      name: 归档
+      url: /archives/
+      weight: 30
+
+params:
+  env: production
+  description: "月光照在深海上。一名学网安的学生，记录从第一行 Bash 到漏洞复现的路。"
+  author: pionxe
+  DateFormat: "2006-01-02"
+  defaultTheme: dark
+  disableThemeToggle: true
+  ShowReadingTime: true
+  ShowWordCount: false
+  ShowBreadCrumbs: false
+  ShowPostNavLinks: true
+  ShowShareButtons: false
+  ShowCodeCopyButtons: true
+  disableSpecial1stPost: true
+  mainSections: ["posts"]
+  label:
+    text: "夜航 · works"
+  footer:
+    text: "月光照在深海上，也照着写给黑夜的代码。"
+  assets:
+    favicon: "/favicon.svg"
+    favicon16x16: "/favicon.svg"
+    favicon32x32: "/favicon.svg"
+    apple_touch_icon: "/favicon.svg"
+    theme_color: "#0f1520"

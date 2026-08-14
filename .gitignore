@@ -1,0 +1,10 @@
+# Hugo 构建产物
+public/
+resources/_gen/
+.hugo_build.lock
+
+# 本地截图
+screenshots/
+
+# 本地临时
+*.tmp
