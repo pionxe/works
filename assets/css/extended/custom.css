@@ -40,7 +40,7 @@ body {
   position: relative;
 }
 
-/* Blurred Night Sea Background Image Overlay - VISIBLE FIX */
+/* Blurred Night Sea Background Image Overlay - SUBTLE OPACITY 0.25 */
 .bg-image-overlay {
   position: fixed;
   top: 0;
@@ -51,7 +51,7 @@ body {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  opacity: 0.55;
+  opacity: 0.25;
   filter: blur(14px);
   transform: scale(1.08);
   pointer-events: none;
