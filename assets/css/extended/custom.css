@@ -1,153 +1,442 @@
-/* ============================================================
-   《夜航》—— 墨蓝 · 月华
-   深墨蓝底（非纯黑） · 月光白字 · 暖金点睛
-   意象：月华、夜海、水墨 —— 安静、深邃、书卷气
-   覆盖 PaperMod `core/theme-vars.css` 的 dark 变量
-   ============================================================ */
+/* ==========================================================================
+   夜航 (Night Voyage) - 极简深空 Glassmorphism Design System
+   ========================================================================== */
 
-:root[data-theme="dark"] {
-    --theme: #0f1520;            /* 深墨蓝底 */
-    --entry: #131b29;            /* 列表卡片，略亮于底 */
-    --primary: #dbe3ef;          /* 月光白 */
-    --secondary: #8a95a9;        /* 蓝灰次级字 */
-    --tertiary: #232e40;         /* 描边 / 分隔 */
-    --content: #c9d3e2;          /* 正文 */
-    --code-block-bg: #0a0f18;    /* 代码块：更深、高对比 */
-    --code-bg: #182235;          /* 行内代码 */
-    --border: #1d2840;           /* 边框 */
-    --accent: #c9a25c;           /* 暖金点睛 */
-    color-scheme: dark;
-}
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Serif+SC:wght@400;600;700&display=swap');
 
-/* ---------- 字体 ---------- */
 :root {
-    --font-serif: "Noto Serif CJK SC", "Noto Serif SC", "Source Han Serif SC", "Songti SC", serif;
-    --font-sans:  "Noto Sans CJK SC", "Source Han Sans SC", system-ui, "PingFang SC", "Microsoft YaHei", sans-serif;
-    --font-mono:  "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, "Cascadia Code", Consolas, monospace;
+  --bg-primary: #080c14;
+  --bg-card: rgba(13, 19, 32, 0.65);
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-hover: rgba(96, 165, 250, 0.35);
+  
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #64748b;
+  
+  --accent-blue: #60a5fa;
+  --accent-cyan: #38bdf8;
+  --accent-gold: #f59e0b;
+
+  --font-serif: 'Noto Serif SC', serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
 }
 
-body {
-    font-family: var(--font-sans);
-    font-size: 16px;
-    line-height: 1.9;            /* 书页般的舒适行距 */
-    color: var(--primary);
+/* --- Base Reset & Canvas Background --- */
+html, body {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  line-height: 1.8;
+  letter-spacing: 0.015em;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
 }
 
-/* 中文标题一律衬线（宋体），书卷气 */
-.logo,
-.post-title,
-h1, h2, h3, h4, h5, h6,
-.entry-header h2,
-.post-content h1, .post-content h2, .post-content h3, .post-content h4 {
-    font-family: var(--font-serif);
-    font-weight: 600;
-    letter-spacing: 0.02em;
+#starfield-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: -1;
 }
 
-/* 单篇正文：稍放大、行距更开，像读一本书 */
-.post-content {
-    font-size: 16.5px;
-    line-height: 1.95;
+/* Background Radial Glow */
+body::before {
+  content: '';
+  position: fixed;
+  top: -10vw;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80vw;
+  height: 40vw;
+  background: radial-gradient(circle, rgba(30, 58, 138, 0.15) 0%, rgba(14, 165, 233, 0.05) 50%, transparent 80%);
+  filter: blur(80px);
+  pointer-events: none;
+  z-index: -1;
 }
 
-/* ---------- 点缀：暖金 ---------- */
-a { color: var(--primary); }
-
-.post-content a {
-    color: var(--primary);
-    border-bottom: 1px solid var(--accent);
-}
-.post-content a:hover {
-    color: var(--accent);
-    border-bottom-color: var(--accent);
-}
-
-.entry-header h2 a:hover,
-h1 a:hover, h2 a:hover, h3 a:hover,
-.nav a:hover,
-.logo a:hover,
-.footer a:hover,
-.pagination a:hover {
-    color: var(--accent);
+/* --- Top Reading Progress Bar --- */
+#reading-progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 2.5px;
+  width: 0%;
+  background: linear-gradient(90deg, #60a5fa, #38bdf8, #f59e0b);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+  z-index: 10000;
+  transition: width 0.1s ease-out;
 }
 
-/* ---------- 首页 intro：一句月光，留白如画 ---------- */
-.list .post-content {
-    text-align: center;
-    font-family: var(--font-serif);
-    color: var(--secondary);
-    letter-spacing: 0.06em;
-    margin: 3.5rem auto 4.5rem;
-    max-width: 46em;
-}
-.list .post-content p {
-    line-height: 2.2;
-    margin-bottom: 0.9em;
+/* --- Typography --- */
+h1, h2, h3, h4, h5, h6, .site-name, .post-title {
+  font-family: var(--font-serif);
+  color: var(--text-primary);
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
-/* ---------- 列表卡片：克制 ---------- */
-.post-entry {
-    background: var(--entry);
-    border-radius: 6px;
-    border: 1px solid transparent;
-    transition: border-color 0.25s ease;
+a {
+  color: var(--accent-blue);
+  text-decoration: none;
+  transition: color 0.2s ease;
 }
-.post-entry:hover {
-    border-color: var(--accent);
-}
-.post-entry .entry-header h2 { font-size: 1.05rem; }
 
-/* ---------- 代码：深色高对比，网安的正文 ---------- */
-.highlight,
-.highlight pre {
-    border-radius: 8px;
+a:hover {
+  color: var(--accent-cyan);
 }
-.highlight pre {
-    background: var(--code-block-bg);
-    padding: 1.1em 1.2em;
-    line-height: 1.7;
-    font-family: var(--font-mono);
-    font-size: 14px;
-}
-.highlight .chroma {
-    background: var(--code-block-bg);
-    color: #cad3f5;
-}
-/* 主题默认把 pre 内 code 压到 0.78em（~11px）太小，恢复成 pre 的字号 */
-.highlight pre code {
-    font-size: inherit;
-}
-code {
-    font-family: var(--font-mono);
-    font-size: 0.9em;
-}
-.post-content code { background: var(--code-bg); }
 
-/* ---------- 顶栏：安静 ---------- */
+/* --- Heavy Glassmorphism Sticky Header --- */
+.header {
+  position: sticky !important;
+  top: 0;
+  background: rgba(8, 12, 20, 0.85) !important;
+  backdrop-filter: blur(24px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
+  z-index: 999;
+  padding: 1rem 1.5rem;
+  transition: border-color 0.3s ease;
+}
+
+.nav {
+  max-width: 950px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 .logo a {
-    color: var(--primary);
-    font-weight: 600;
-    letter-spacing: 0.04em;
+  font-family: var(--font-serif);
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text-primary) !important;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
-.nav a {
-    font-family: var(--font-sans);
-    font-size: 0.95rem;
-    color: var(--secondary);
-}
-.nav a:hover { color: var(--accent); }
-.nav .active { color: var(--primary); border-bottom: 1px solid var(--accent); }
 
-/* ---------- 页脚 ---------- */
+.logo a::before {
+  content: '🌙';
+  font-size: 1.1rem;
+  filter: drop-shadow(0 0 6px rgba(96, 165, 250, 0.6));
+}
+
+.menu ul {
+  display: flex;
+  gap: 1.75rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.menu a {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  font-weight: 400;
+  position: relative;
+  padding: 0.25rem 0;
+}
+
+.menu a::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 0%;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan));
+  transition: width 0.3s ease;
+  border-radius: 2px;
+}
+
+.menu a:hover {
+  color: var(--text-primary);
+}
+
+.menu a:hover::after {
+  width: 100%;
+}
+
+/* --- Hero Info Block (Homepage Header) --- */
+.first-entry {
+  background: var(--bg-card) !important;
+  backdrop-filter: blur(16px) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 16px !important;
+  padding: 2.25rem !important;
+  margin-bottom: 2.5rem !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.first-entry .entry-header h1 {
+  font-family: var(--font-serif);
+  font-size: 1.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.first-entry .entry-content {
+  color: var(--text-secondary);
+  font-size: 1.05rem;
+  line-height: 1.8;
+}
+
+/* --- Minimalist Text-Only Article List --- */
+.list-page, .main {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+.post-entry {
+  position: relative;
+  background: var(--bg-card) !important;
+  backdrop-filter: blur(12px) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 14px !important;
+  padding: 1.5rem 1.75rem !important;
+  margin-bottom: 1.25rem !important;
+  overflow: hidden;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s, box-shadow 0.3s !important;
+}
+
+.post-entry:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-hover) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 20px rgba(56, 189, 248, 0.12) !important;
+}
+
+/* Shimmer Light-Sweep Effect on Hover */
+.post-entry::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -70%;
+  width: 45%;
+  height: 200%;
+  background: linear-gradient(
+    60deg,
+    transparent,
+    rgba(255, 255, 255, 0.05),
+    rgba(96, 165, 250, 0.2),
+    rgba(255, 255, 255, 0.05),
+    transparent
+  );
+  transform: rotate(25deg);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.post-entry:hover::after {
+  opacity: 1;
+  animation: sweep 0.85s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes sweep {
+  0% { left: -70%; }
+  100% { left: 140%; }
+}
+
+.entry-header h2 {
+  font-size: 1.25rem;
+  margin: 0 0 0.5rem 0;
+  line-height: 1.4;
+  color: var(--text-primary);
+}
+
+.entry-content {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  margin-bottom: 0.75rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.entry-footer {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.post-tag-pill {
+  background: rgba(96, 165, 250, 0.1);
+  color: var(--accent-blue);
+  border: 1px solid rgba(96, 165, 250, 0.25);
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-family: var(--font-sans);
+}
+
+/* --- Mac Control Dots for Code Blocks --- */
+.highlight, pre {
+  background: #090e17 !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 12px !important;
+  position: relative;
+  margin: 1.75rem 0 !important;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.mac-window-bar {
+  display: flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 14px;
+  background: rgba(15, 23, 42, 0.9);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  gap: 8px;
+}
+
+.mac-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.mac-dot-close { background-color: #ff5f56; }
+.mac-dot-minimize { background-color: #ffbd2e; }
+.mac-dot-maximize { background-color: #27c93f; }
+
+.mac-window-title {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.highlight code, pre code {
+  font-family: var(--font-mono) !important;
+  font-size: 0.9rem !important;
+  line-height: 1.6 !important;
+  padding: 1.25rem !important;
+  display: block;
+}
+
+/* Code Copy Button */
+.copy-code-btn {
+  position: absolute;
+  top: 6px;
+  right: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--text-secondary);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  z-index: 10;
+}
+
+.copy-code-btn:hover {
+  background: rgba(96, 165, 250, 0.2);
+  color: var(--text-primary);
+}
+
+/* --- Table of Contents (TOC) Glassmorphism Panel --- */
+details.toc {
+  background: var(--bg-card) !important;
+  backdrop-filter: blur(16px) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 12px !important;
+  padding: 1rem 1.25rem !important;
+  margin: 1.5rem 0 2rem 0 !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3) !important;
+  transition: border-color 0.3s ease !important;
+}
+
+details.toc:hover {
+  border-color: var(--border-hover) !important;
+}
+
+details.toc summary {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+  font-size: 1rem;
+}
+
+details.toc .inner ul {
+  list-style: none;
+  padding-left: 0.75rem;
+  margin-top: 0.75rem;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+details.toc .inner li {
+  margin-bottom: 0.4rem;
+  font-size: 0.88rem;
+}
+
+details.toc .inner a {
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+  display: inline-block;
+}
+
+details.toc .inner a:hover, details.toc .inner a.active {
+  color: var(--accent-blue);
+  transform: translateX(4px);
+}
+
+/* --- Back to Top Button --- */
+#back-to-top {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: rgba(13, 19, 32, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--text-primary);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  z-index: 9999;
+}
+
+#back-to-top.show {
+  opacity: 1;
+  visibility: visible;
+}
+
+#back-to-top:hover {
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+  transform: translateY(-3px);
+}
+
+/* --- Footer Styling --- */
 .footer {
-    color: var(--secondary);
-    font-size: 0.85rem;
-    letter-spacing: 0.04em;
-}
-.footer a { color: var(--secondary); }
-
-/* ---------- 引用块：像诗句 ---------- */
-.post-content blockquote {
-    border-left: 2px solid var(--accent);
-    color: var(--secondary);
-    font-family: var(--font-serif);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 2.5rem 0;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin-top: 4rem;
 }

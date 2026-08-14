@@ -6,10 +6,20 @@ hasCJKLanguage: true
 enableRobotsTXT: true
 enableEmoji: true
 pygmentsUseClasses: true
+
 pagination:
   pagerSize: 10
 
 theme: ["PaperMod"]
+
+markup:
+  goldmark:
+    renderer:
+      unsafe: true
+  tableOfContents:
+    startLevel: 2
+    endLevel: 4
+    ordered: false
 
 menu:
   main:
@@ -28,7 +38,7 @@ menu:
 
 params:
   env: production
-  description: "月光照在深海上。一名学网安的学生，记录从第一行 Bash 到漏洞复现的路。"
+  description: "这些字多是夜里写的，说给自己听。白天想不通的事，写到纸上才慢慢理顺；一篇篇攒下来，攒得久了，就成了这趟夜航。"
   author: pionxe
   DateFormat: "2006-01-02"
   defaultTheme: dark
@@ -39,8 +49,13 @@ params:
   ShowPostNavLinks: true
   ShowShareButtons: false
   ShowCodeCopyButtons: true
+  ShowToc: true
+  TocOpen: true
   disableSpecial1stPost: true
   mainSections: ["posts"]
+  homeInfoParams:
+    Title: "夜航"
+    Content: "这些字多是夜里写的，说给自己听。白天想不通的事，写到纸上才慢慢理顺；一篇篇攒下来，攒得久了，就成了这趟夜航。"
   label:
     text: "夜航 · works"
   footer:
@@ -50,4 +65,4 @@ params:
     favicon16x16: "/favicon.svg"
     favicon32x32: "/favicon.svg"
     apple_touch_icon: "/favicon.svg"
-    theme_color: "#0f1520"
+    theme_color: "#080c14"
