@@ -1,3 +1,6 @@
+<!-- Blurred Night Sea Background Image Overlay -->
+<div class="bg-image-overlay"></div>
+
 <!-- Top Reading Progress Bar -->
 <div id="reading-progress-bar"></div>
 
@@ -11,7 +14,7 @@
   const ctx = canvas.getContext('2d');
   
   let stars = [];
-  const numStars = 60; // Sparse, elegant star particles
+  const numStars = 60;
   
   function resizeCanvas() {
     canvas.width = window.innerWidth;
@@ -38,7 +41,6 @@
     
     for (let i = 0; i < stars.length; i++) {
       const star = stars[i];
-      // Twinkle effect
       const currentAlpha = star.alpha + Math.sin(time * star.speed * 50 + star.phase) * 0.25;
       const clampedAlpha = Math.max(0.05, Math.min(0.85, currentAlpha));
 
@@ -47,7 +49,6 @@
       ctx.fillStyle = `rgba(226, 232, 240, ${clampedAlpha})`;
       ctx.fill();
 
-      // Subtle vertical drift
       star.y -= 0.15;
       if (star.y < 0) {
         star.y = canvas.height;

@@ -18,15 +18,15 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // --- 2. Inject Mac Terminal Window Dots to Code Blocks ---
-  const codeBlocks = document.querySelectorAll('.highlight, pre');
+  // --- 2. Inject Mac Terminal Window Dots to Code Blocks (Single Bar Fix) ---
+  // Select outer div.highlight OR standalone pre elements not inside .highlight
+  const codeBlocks = document.querySelectorAll('div.highlight, pre:not(.highlight pre)');
   codeBlocks.forEach(function(block) {
-    if (block.querySelector('.mac-window-bar')) return; // Avoid duplicate
+    if (block.querySelector(':scope > .mac-window-bar')) return; // Avoid duplicate
 
     const header = document.createElement('div');
     header.className = 'mac-window-bar';
     
-    // Language detection or title
     let lang = '';
     const codeEl = block.querySelector('code');
     if (codeEl) {
@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   // --- 4. ScrollSpy for TOC Links ---
-  const tocLinks = document.querySelectorAll('.toc-sidebar a, #TOC a');
+  const tocLinks = document.querySelectorAll('.toc-sidebar a, #TOC a, details.toc a');
   if (tocLinks.length > 0) {
     const headings = Array.from(document.querySelectorAll('h1[id], h2[id], h3[id], h4[id]'));
     

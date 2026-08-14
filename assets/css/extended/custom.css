@@ -35,6 +35,24 @@ html, body {
   overflow-x: hidden;
 }
 
+/* Blurred Night Sea Background Image Overlay */
+.bg-image-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-image: url('/images/bg-night.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0.35;
+  filter: blur(18px);
+  transform: scale(1.05);
+  pointer-events: none;
+  z-index: -2;
+}
+
 #starfield-canvas {
   position: fixed;
   top: 0;
@@ -281,7 +299,7 @@ a:hover {
 }
 
 /* --- Mac Control Dots for Code Blocks --- */
-.highlight, pre {
+div.highlight, pre:not(.highlight pre) {
   background: #090e17 !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
   border-radius: 12px !important;
@@ -289,6 +307,14 @@ a:hover {
   margin: 1.75rem 0 !important;
   overflow: hidden;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+div.highlight pre {
+  border: none !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
 }
 
 .mac-window-bar {
