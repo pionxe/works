@@ -23,9 +23,13 @@
   --font-mono: 'JetBrains Mono', monospace;
 }
 
-/* --- Base Reset & Canvas Background --- */
-html, body {
+/* --- Base Reset & Transparent Body for Background Image Overlay --- */
+html {
   background-color: var(--bg-primary) !important;
+}
+
+body {
+  background: transparent !important;
   color: var(--text-secondary);
   font-family: var(--font-sans);
   line-height: 1.8;
@@ -33,9 +37,10 @@ html, body {
   margin: 0;
   padding: 0;
   overflow-x: hidden;
+  position: relative;
 }
 
-/* Blurred Night Sea Background Image Overlay */
+/* Blurred Night Sea Background Image Overlay - VISIBLE FIX */
 .bg-image-overlay {
   position: fixed;
   top: 0;
@@ -46,11 +51,11 @@ html, body {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  opacity: 0.35;
-  filter: blur(18px);
-  transform: scale(1.05);
+  opacity: 0.55;
+  filter: blur(14px);
+  transform: scale(1.08);
   pointer-events: none;
-  z-index: -2;
+  z-index: -1;
 }
 
 #starfield-canvas {
@@ -60,7 +65,7 @@ html, body {
   width: 100vw;
   height: 100vh;
   pointer-events: none;
-  z-index: -1;
+  z-index: 0;
 }
 
 /* Background Radial Glow */
@@ -72,10 +77,16 @@ body::before {
   transform: translateX(-50%);
   width: 80vw;
   height: 40vw;
-  background: radial-gradient(circle, rgba(30, 58, 138, 0.15) 0%, rgba(14, 165, 233, 0.05) 50%, transparent 80%);
+  background: radial-gradient(circle, rgba(30, 58, 138, 0.2) 0%, rgba(14, 165, 233, 0.08) 50%, transparent 80%);
   filter: blur(80px);
   pointer-events: none;
-  z-index: -1;
+  z-index: 0;
+}
+
+/* Ensure Content Sections are above Background Image Overlay */
+.header, .main, .footer, .list-page, .first-entry, .post-entry {
+  position: relative;
+  z-index: 10;
 }
 
 /* --- Top Reading Progress Bar --- */
