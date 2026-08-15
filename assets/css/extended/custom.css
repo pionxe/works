@@ -52,7 +52,7 @@ body {
   background-position: center;
   background-repeat: no-repeat;
   opacity: 0.25;
-  filter: blur(14px);
+  filter: blur(3px);
   transform: scale(1.08);
   pointer-events: none;
   z-index: -1;
@@ -476,4 +476,33 @@ details.toc .inner a:hover, details.toc .inner a.active {
   color: var(--text-muted);
   font-size: 0.85rem;
   margin-top: 4rem;
+}
+
+/* --- 点击水波：物理波场 canvas（替换旧的 SVG 同心圆波纹） --- */
+.ripple-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;   /* 点击穿透，不影响链接/文本选择 */
+  z-index: 9999;          /* 内容(z-10)之上；进度条(z-10000)之下，水波不盖进度条 */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* --- 水波调试徽标（__rippleDebug=true 时由 JS 注入，正常模式无） --- */
+.ripple-debug-badge {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 10001;
+  padding: 2px 8px;
+  font: 11px/1.4 ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+  letter-spacing: 0.08em;
+  color: #0ff;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(0, 255, 255, 0.5);
+  border-radius: 4px;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
 }

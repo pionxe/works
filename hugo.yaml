@@ -44,7 +44,7 @@ params:
   defaultTheme: dark
   disableThemeToggle: true
   ShowReadingTime: true
-  ShowWordCount: false
+  ShowWordCount: true
   ShowBreadCrumbs: false
   ShowPostNavLinks: true
   ShowShareButtons: false

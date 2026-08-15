@@ -87,3 +87,577 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 </script>
+
+<script>
+/* ============================================================================
+ * 点击水波 —— 物理波场 + 文字阻碍物（礁石反射 / 正文遮挡 / 点击 nudge / 懒构建 / __rippleDebug）
+ * ----------------------------------------------------------------------------
+ * 规格：/tmp/ripple-obstacle-spec.md（第三轮定稿）   物理内核：/tmp/ripple-spec.md
+ *
+ * 新增能力（相对旧波纹脚本）：
+ *   1. 硬礁（Dirichlet）：结构性元素（标题/代码块/引用/TOC/header）格点在波动方程里恒 0
+ *      → 波撞上反射、绕流、衍射，光自动不从字上过。
+ *   2. 正文遮挡：正文（段落/列表/摘要）不挡波，但渲染时 specular 亮度乘 (1 - OCCLUDE·occ)，
+ *      "光尊重字" 且环在正文上仍可见。
+ *   3. 点击 nudge：落在硬礁上 → 水滴注入最近的自由水格。
+ *   4. 掩膜懒构建：仅波纹活跃期构建/重建（滚动跨 ~1 格重建），波死即弃，空闲零常驻。
+ *   5. __rippleDebug 调试 overlay：青=礁石掩膜、品红=正文遮挡掩膜。
+ *
+ * ========================= 接线说明（替换） =================================
+ *   A. 整体替换 layouts/_partials/extend_footer.html 里
+ *      "点击水波 —— 物理波场" 那一段 <script>（从该块 <script> 到 <\/script>，
+ *      即当前文件里第 91~419 行那一整段 IIFE）。第 9~89 行的其它脚本（进度条 /
+ *      Mac 代码块 / 回到顶部 / scrollspy）保留不动。
+ *   B. CSS 见 /tmp/ripple-obstacle-css.txt：.ripple-canvas 规则不变，
+ *      仅追加 .ripple-debug-badge（调试徽标，可选）。
+ *   C. 开调试：控制台执行  window.__rippleDebug = true;  然后刷新页面
+ *      （掩膜会常驻 + 右上/左上出现 "RIPPLE DEBUG" 徽标）。
+ * ========================================================================== */
+(function () {
+  'use strict';
+
+  /* ---------------- 常量（调参旋钮集中于此） ---------------- */
+  /* —— 物理内核（原参数，全部保留）—— */
+  var SCALE   = 4;      // 网格分辨率：css像素 / 4，即约 4px 一格
+  var C2      = 0.25;   // c²（c=0.5，稳定上限 c≤1/√2≈0.707）→ 波速约 120px/s
+  var DAMP    = 0.985;  // 每帧黏性阻尼 —— 先调这个控制寿命/亮度
+  var CLAMP   = 3.0;    // 振幅夹断，防连点能量爆炸
+  var H_GATE  = 0.004;  // 渲染门限：|h| 小于此不渲染
+
+  var SIGMA   = 2.5;    // 冲量高斯 σ（格），约 10px
+  var ANISO   = 0.04;   // 4% 椭圆各向异性，破圆
+  var AMP0    = 1.0;    // 单次点击基准振幅
+  var AMP_STEP= 0.25;   // 连点合并时的能量累加步长
+  var AMP_MAX = 1.6;    // 合并振幅上限
+  var MERGE_MS= 100;    // 连点合并时间窗（ms）
+  var MERGE_PX= 30;     // 连点合并距离窗（css px）
+
+  var K       = 1.0;    // 斜率增益
+  var P       = 24;     // 镜面指数：越大亮斑越窄越锐
+  var KSPEC   = 1.3;    // 镜面亮度增益
+  var LX = -0.475, LY = -0.475, LZ = 0.741;  // 月光方向（左上偏上，已归一化）
+  var ATTEN   = [0.10, 0.30, 0.55, 0.78, 0.90]; // 海绵吸收：到最近边缘距离 d=0..4
+
+  var COLOR_R = 212, COLOR_G = 228, COLOR_B = 255; // 月光白，微偏蓝
+
+  /* —— 文字阻碍物（新增旋钮，集中在此调）—— */
+  var REEF_SELECTOR = '.header, .post-title, .entry-header h2, ' +
+                      '.post-content h1, .post-content h2, .post-content h3, .post-content h4, ' +
+                      '.post-content blockquote, .post-content .highlight, .post-content pre, ' +
+                      '.toc';               // 硬礁元素集合（结构性大元素当"岛"）
+  var OCC_SELECTOR  = 'main p, main li, .entry-summary';  // 正文遮挡元素集合
+  var OCCLUDE       = 0.6;    // 正文遮挡强度：alpha ×= (1 - OCCLUDE·occ)。调 0.9=字上绝无光（环在正文近不可见）
+  var REEF_THRESH   = 0.5;    // 行盒覆盖率→礁石二值化阈值（低=肥礁/锯齿重，高=瘦礁）
+  var NUDGE_MAX     = 24;     // 点礁→最近自由格搜索半径上限（格，≈96px）
+  var REEF_ERODE    = 0;      // 礁石掩膜二值腐蚀格数（>0 压"月光贴边"亮线）
+  var SCROLL_REBUILD_CELLS = 1; // 波纹活跃期滚动跨几格触发掩膜重建
+
+  /* ---------------- 状态 ---------------- */
+  var canvas, ctx, offCanvas, offCtx, imgData, u32Data;
+  var cssW, cssH, W, H, cellW, cellH, dpr;
+  var h, hPrev, hNext;   // 三缓冲高度场（Float32Array）
+  var running = false, rafId = 0, emptyFrames = 0;
+  var lastClick = null;  // 连点合并记录
+  var pending = null;    // 触摸悬置（抬手才注入）
+
+  /* —— 文字阻碍物状态（懒构建：空闲时全为 null）—— */
+  var reef = null, occ = null;      // 礁石 Uint8Array(W*H)；正文遮挡 Float32Array(W*H)
+  var reefCells = null, reefCellsLen = 0;  // 礁石格线性索引表（稀疏零化用）
+  var maskScrollY = -1;             // 掩膜构建时的 window.scrollY
+  var DEBUG = false;                // __rippleDebug 开关（boot 里读）
+
+  var raf = window.requestAnimationFrame ||
+            function (fn) { return setTimeout(function () { fn(Date.now()); }, 16); };
+  var caf = window.cancelAnimationFrame ||
+            function (id) { clearTimeout(id); };
+
+  /* ---------------- 工具 ---------------- */
+  function zeroArr(a) {
+    for (var k = 0; k < a.length; k++) a[k] = 0;
+  }
+
+  function ensureRunning() {
+    if (!running) {
+      running = true;
+      emptyFrames = 0;
+      rafId = raf(frame);
+    }
+  }
+
+  function clearWaves() {
+    zeroArr(h); zeroArr(hPrev); zeroArr(hNext);
+    ctx.clearRect(0, 0, cssW, cssH);
+  }
+
+  /* ================= 文字阻碍物：掩膜构建 ================= */
+
+  /* 收集 selector 下所有文本节点的行盒矩形（viewport CSS 坐标，自动拆行/混合字体） */
+  function collectLineRects(selector) {
+    var rects = [];
+    var els = document.querySelectorAll(selector);
+    for (var e = 0; e < els.length; e++) {
+      var el = els[e];
+      var cs = getComputedStyle(el);
+      if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+      var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      var node;
+      while ((node = walker.nextNode())) {
+        if (!node.nodeValue.trim()) continue;
+        var range = document.createRange();
+        range.selectNodeContents(node);
+        var rs = range.getClientRects();       // 每行一个 rect
+        for (var k = 0; k < rs.length; k++) {
+          var r = rs[k];
+          if (r.width <= 0 || r.height <= 0) continue;
+          rects.push({ left: r.left, top: r.top, right: r.right, bottom: r.bottom });
+        }
+      }
+    }
+    return rects;
+  }
+
+  /* 行盒矩形 → 逐格覆盖率 0..1（算术面积相交，累加封顶 1，嵌套/重叠无副作用） */
+  function rasterizeRects(rects, cov) {
+    for (var k = 0; k < rects.length; k++) {
+      var r = rects[k];
+      var i0 = Math.max(0, Math.floor(r.left   / cellW));
+      var i1 = Math.min(W - 1, Math.ceil(r.right  / cellW) - 1);
+      var j0 = Math.max(0, Math.floor(r.top    / cellH));
+      var j1 = Math.min(H - 1, Math.ceil(r.bottom / cellH) - 1);
+      for (var j = j0; j <= j1; j++) {
+        var cy0 = Math.max(r.top,    j       * cellH);
+        var cy1 = Math.min(r.bottom, (j + 1) * cellH);
+        var hgt = cy1 - cy0;
+        if (hgt <= 0) continue;
+        var rowOff = j * W;
+        for (var i = i0; i <= i1; i++) {
+          var cx0 = Math.max(r.left,   i       * cellW);
+          var cx1 = Math.min(r.right, (i + 1) * cellW);
+          var wdt = cx1 - cx0;
+          if (wdt <= 0) continue;
+          var n = rowOff + i;
+          var v = cov[n] + (wdt * hgt) / (cellW * cellH);
+          cov[n] = v > 1 ? 1 : v;
+        }
+      }
+    }
+  }
+
+  /* 礁石掩膜二值腐蚀（收缩）；需重建 reefCells（可选，REEF_ERODE>0 才用） */
+  function erodeReef(steps) {
+    var out = new Uint8Array(W * H);
+    for (var s = 0; s < steps; s++) {
+      for (var j = 1; j < H - 1; j++) {
+        var rowOff = j * W;
+        for (var i = 1; i < W - 1; i++) {
+          var n = rowOff + i;
+          out[n] = (reef[n] && reef[n - 1] && reef[n + 1] && reef[n - W] && reef[n + W]) ? 1 : 0;
+        }
+      }
+      var t = reef; reef = out; out = t;
+      for (var n2 = 0; n2 < W * H; n2++) out[n2] = 0;   // 复用缓冲
+    }
+    var cells = [];
+    for (var n3 = 0; n3 < W * H; n3++) if (reef[n3]) cells.push(n3);
+    reefCells = new Uint32Array(cells.length);
+    for (var k = 0; k < cells.length; k++) reefCells[k] = cells[k];
+    reefCellsLen = cells.length;
+  }
+
+  /* 构建两张掩膜 + 礁石索引表 + 清旧波 */
+  function buildMasks() {
+    var reefCov = new Float32Array(W * H);
+    rasterizeRects(collectLineRects(REEF_SELECTOR), reefCov);
+
+    reef = new Uint8Array(W * H);
+    var cells = [];
+    for (var n = 0; n < W * H; n++) {
+      if (reefCov[n] >= REEF_THRESH) { reef[n] = 1; cells.push(n); }
+    }
+    reefCells = new Uint32Array(cells.length);
+    for (var k = 0; k < cells.length; k++) reefCells[k] = cells[k];
+    reefCellsLen = cells.length;
+
+    occ = new Float32Array(W * H);
+    rasterizeRects(collectLineRects(OCC_SELECTOR), occ);
+
+    if (REEF_ERODE > 0) erodeReef(REEF_ERODE);
+
+    // 清旧波：新建礁石格上别留能量（防 resize/滚动重建后 h/hPrev 残留）
+    for (k = 0; k < reefCellsLen; k++) {
+      h[reefCells[k]] = 0; hPrev[reefCells[k]] = 0; hNext[reefCells[k]] = 0;
+    }
+    maskScrollY = window.scrollY;
+  }
+
+  /* 懒构建 / 滚动跨格重建（仅波纹活跃期间调用，见 frame 顶部与 injectAt） */
+  function ensureMasks() {
+    if (!reef || !occ) { buildMasks(); return; }
+    if (Math.abs(window.scrollY - maskScrollY) >= cellH * SCROLL_REBUILD_CELLS) buildMasks();
+  }
+
+  /* 点击落礁 → 最近自由水格（网格浮点中心）；已在自由格则原样返回 */
+  function nearestFreeCell(gx, gy) {
+    var ci = Math.round(gx), cj = Math.round(gy);
+    var n0 = cj * W + ci;
+    if (!reef || n0 < 0 || n0 >= W * H) return { x: gx, y: gy };   // 无掩膜/越界 → 原样
+    if (!reef[n0]) return { x: gx, y: gy };                        // 已是自由格
+
+    // 逐环扩张，环内取距 (gx,gy) 最近者（避免 nudge 瞬移到礁的远端）
+    for (var r = 1; r <= NUDGE_MAX; r++) {
+      var best = null, bestD2 = Infinity;
+      for (var dy = -r; dy <= r; dy++) {
+        var j = cj + dy;
+        if (j < 1 || j >= H - 1) continue;               // 避开海绵带（同 inject）
+        var rowOff = j * W;
+        for (var dx = -r; dx <= r; dx++) {
+          if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;  // 只扫当前环
+          var i = ci + dx;
+          if (i < 1 || i >= W - 1) continue;
+          if (reef[rowOff + i]) continue;
+          var dxf = i - gx, dyf = j - gy;
+          var d2 = dxf * dxf + dyf * dyf;
+          if (d2 < bestD2) { bestD2 = d2; best = { x: i, y: j }; }
+        }
+      }
+      if (best) return { x: best.x + 0.5, y: best.y + 0.5 };
+    }
+
+    // 超 NUDGE_MAX：无上限兜底——全网格扫最近自由格（罕见：点进超大礁中央）
+    var gBest = null, gD2 = Infinity;
+    for (var jj = 1; jj < H - 1; jj++) {
+      var rOff = jj * W;
+      for (var ii = 1; ii < W - 1; ii++) {
+        if (reef[rOff + ii]) continue;
+        var dx2 = ii - gx, dy2 = jj - gy;
+        var d2b = dx2 * dx2 + dy2 * dy2;
+        if (d2b < gD2) { gD2 = d2b; gBest = { x: ii, y: jj }; }
+      }
+    }
+    if (gBest) return { x: gBest.x + 0.5, y: gBest.y + 0.5 };
+    return { x: gx, y: gy };                              // 全屏皆礁（理论不可能）→ 原样
+  }
+
+  /* 调试 overlay：青=礁石掩膜、品红=正文遮挡（alpha 随覆盖率）。不清屏，由调用方决定。 */
+  function drawOverlay() {
+    var u32 = u32Data;
+    for (var k = 0; k < u32.length; k++) u32[k] = 0;      // 复用 render 的清零手法
+    for (var n = 0; n < W * H; n++) {
+      if (reef && reef[n]) {                               // 青
+        imgData.data[4 * n]     = 0;
+        imgData.data[4 * n + 1] = 255;
+        imgData.data[4 * n + 2] = 255;
+        imgData.data[4 * n + 3] = 51;
+      } else if (occ && occ[n] > 0.02) {                   // 品红
+        imgData.data[4 * n]     = 255;
+        imgData.data[4 * n + 1] = 0;
+        imgData.data[4 * n + 2] = 255;
+        imgData.data[4 * n + 3] = Math.round(38 * occ[n]);
+      }
+    }
+    offCtx.putImageData(imgData, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.drawImage(offCanvas, 0, 0, cssW, cssH);            // 双线性放大，与光同一管线
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  /* ---------------- 主循环（模拟 + bbox + 渲染） ---------------- */
+  function frame() {
+    var i, j, n, cur, lap, val, rowOff;
+    var minX = W, minY = H, maxX = -1, maxY = -1;
+
+    ensureMasks();   // 懒构建 / 滚动跨格重建（含首帧）
+
+    // ① 离散波动方程：中心五点差分 + leapfrog + 阻尼 + clamp
+    for (j = 1; j < H - 1; j++) {
+      rowOff = j * W;
+      for (i = 1; i < W - 1; i++) {
+        n = rowOff + i;
+        cur = h[n];
+        lap = h[n - 1] + h[n + 1] + h[n - W] + h[n + W] - 4 * cur;
+        val = 2 * cur - hPrev[n] + C2 * lap;
+        if (val > CLAMP) val = CLAMP;
+        else if (val < -CLAMP) val = -CLAMP;
+        val *= DAMP;
+        hNext[n] = val;
+        // 顺手记 bbox
+        if (val > H_GATE || val < -H_GATE) {
+          if (i < minX) minX = i;
+          if (i > maxX) maxX = i;
+          if (j < minY) minY = j;
+          if (j > maxY) maxY = j;
+        }
+      }
+    }
+
+    // ② 海绵吸收边界（防窗口边反射）
+    sponge();
+
+    // ③ 礁石 Dirichlet：障碍格恒 0 → 反射 / 绕流 / 衍射由此涌现
+    //    邻居在拉普拉斯里读到 0 → 自动形成"钳制墙"（唯一动物理的一行）
+    for (var k = 0; k < reefCellsLen; k++) hNext[reefCells[k]] = 0;
+
+    // ④ 三缓冲轮转
+    var tmp = hPrev; hPrev = h; h = hNext; hNext = tmp;
+
+    // ⑤ 渲染（仅当有活跃格点）
+    if (maxX >= minX && maxY >= minY) {
+      render(minX - 2, minY - 2, maxX + 2, maxY + 2);
+      emptyFrames = 0;
+      if (DEBUG) drawOverlay();          // 叠加在光之上（不清屏）
+    } else {
+      emptyFrames++;
+      if (emptyFrames >= 3) {
+        if (DEBUG) {                     // 调试：不休眠，空转画 overlay
+          ctx.clearRect(0, 0, cssW, cssH);
+          drawOverlay();
+          rafId = raf(frame);
+          return;
+        }
+        running = false;
+        caf(rafId);
+        ctx.clearRect(0, 0, cssW, cssH);  // 清尾帧
+        reef = occ = reefCells = null;    // 掩膜随波纹一起丢弃（空闲零常驻）
+        reefCellsLen = 0; maskScrollY = -1;
+        return;
+      }
+    }
+    rafId = raf(frame);
+  }
+
+  /* ---------------- 海绵吸收层 ---------------- */
+  function sponge() {
+    var i, j, n, a, off;
+    // 上 5 行
+    for (j = 0; j < 5 && j < H; j++) {
+      a = ATTEN[j]; off = j * W;
+      for (i = 0; i < W; i++) hNext[off + i] *= a;
+    }
+    // 下 5 行（跳过已被上 5 行处理的）
+    for (j = H - 5; j < H; j++) {
+      if (j < 5) continue;
+      a = ATTEN[H - 1 - j]; off = j * W;
+      for (i = 0; i < W; i++) hNext[off + i] *= a;
+    }
+    // 左 5 列
+    for (i = 0; i < 5 && i < W; i++) {
+      a = ATTEN[i];
+      for (j = 5; j < H - 5; j++) hNext[j * W + i] *= a;
+    }
+    // 右 5 列（跳过已被左 5 列处理的）
+    for (i = W - 5; i < W; i++) {
+      if (i < 5) continue;
+      a = ATTEN[W - 1 - i];
+      for (j = 5; j < H - 5; j++) hNext[j * W + i] *= a;
+    }
+  }
+
+  /* ---------------- 渲染：低分辨率场 → ImageData → 平滑放大 → lighter ---------------- */
+  function render(x0, y0, x1, y1) {
+    if (x0 < 1) x0 = 1;
+    if (y0 < 1) y0 = 1;
+    if (x1 > W - 2) x1 = W - 2;
+    if (y1 > H - 2) y1 = H - 2;
+    if (x0 > x1 || y0 > y1) { ctx.clearRect(0, 0, cssW, cssH); return; }
+
+    // 整帧零化（防上帧残留亮斑）
+    var u32 = u32Data;
+    for (var k = 0; k < u32.length; k++) u32[k] = 0;
+
+    var i, j, n, idx, a, gx, gy, nx, ny, nz, inv, d, b, rowOff, oc;
+    for (j = y0; j <= y1; j++) {
+      rowOff = j * W;
+      for (i = x0; i <= x1; i++) {
+        n = rowOff + i;
+        a = h[n];
+        if (a > H_GATE || a < -H_GATE) {
+          gx = h[n + 1] - h[n - 1];   // 中心差分梯度（格单位）
+          gy = h[n + W] - h[n - W];
+          nx = -gx * K;
+          ny = -gy * K;
+          nz = 1;
+          inv = 1 / Math.sqrt(nx * nx + ny * ny + 1);
+          nx *= inv; ny *= inv; nz *= inv;
+          d = nx * LX + ny * LY + nz * LZ;   // 月光方向
+          if (d > 0) {
+            b = Math.pow(d, P) * KSPEC;      // 镜面高光
+            b *= Math.min(1, Math.abs(a) * 2.5);  // 振幅淡出：弱波自动变暗
+            if (b > 0.004) {
+              if (b > 1) b = 1;
+              oc = occ ? occ[n] : 0;         // 正文遮挡（礁石格 h=0 进不了这里，无需额外判断）
+              idx = 4 * n;
+              imgData.data[idx]     = COLOR_R;
+              imgData.data[idx + 1] = COLOR_G;
+              imgData.data[idx + 2] = COLOR_B;
+              imgData.data[idx + 3] = Math.round(255 * b * (1 - OCCLUDE * oc));
+            }
+          }
+        }
+      }
+    }
+
+    offCtx.putImageData(imgData, 0, 0);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.imageSmoothingEnabled = true;
+    ctx.clearRect(0, 0, cssW, cssH);              // 每帧清主画布，防光逐帧累积
+    ctx.drawImage(offCanvas, 0, 0, cssW, cssH);   // 双线性放大 = 软光
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  /* ---------------- 冲量注入：一滴水 ---------------- */
+  function inject(gx, gy, amp) {
+    var theta = Math.random() * Math.PI * 2;
+    var cosT = Math.cos(theta), sinT = Math.sin(theta);
+    var sxs = SIGMA * (1 + ANISO);   // 长半轴
+    var sys = SIGMA * (1 - ANISO);   // 短半轴
+    var r = Math.ceil(SIGMA * 3.2);  // 注入半径（格）≈ 8
+    var ci = Math.round(gx), cj = Math.round(gy);
+    var i, j, dx, dy, rx, ry, d2, g, n;
+
+    for (j = cj - r; j <= cj + r; j++) {
+      if (j < 1 || j >= H - 1) continue;   // 避开海绵带
+      for (i = ci - r; i <= ci + r; i++) {
+        if (i < 1 || i >= W - 1) continue;
+        dx = i - gx;
+        dy = j - gy;
+        rx = dx * cosT + dy * sinT;        // 旋转到各向异性主轴
+        ry = -dx * sinT + dy * cosT;
+        d2 = (rx * rx) / (sxs * sxs) + (ry * ry) / (sys * sys);
+        if (d2 > 9) continue;              // 3σ 截断
+        g = Math.exp(-d2);
+        n = j * W + i;
+        h[n]     += amp * g;               // 位置冲量
+        hPrev[n] -= amp * g;               // 速度冲量 → 扩散成环
+      }
+    }
+  }
+
+  function injectAt(px, py) {
+    var nowT = Date.now();
+    var gx = px / cellW, gy = py / cellH;
+    var amp = AMP0;
+
+    ensureMasks();   // nudge 用最新掩膜（首次点击顺带建掩膜）
+
+    if (lastClick && (nowT - lastClick.t) < MERGE_MS) {
+      var dx = px - lastClick.x, dy = py - lastClick.y;
+      if (dx * dx + dy * dy < MERGE_PX * MERGE_PX) {
+        amp = Math.min(AMP_MAX, lastClick.amp + AMP_STEP);  // 能量累加封顶
+        gx = lastClick.gx;                                   // 仍砸在原处
+        gy = lastClick.gy;
+      }
+    }
+    var target = nearestFreeCell(gx, gy);   // 落礁 → 最近自由格（水从礁边炸开）
+    gx = target.x; gy = target.y;
+
+    lastClick = { t: nowT, x: px, y: py, gx: gx, gy: gy, amp: amp };
+    inject(gx, gy, amp);
+    ensureRunning();
+  }
+
+  /* ---------------- 事件 ---------------- */
+  function onPointerDown(e) {
+    if (!e.isPrimary) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (e.pointerType === 'touch') {
+      // 触摸悬置到抬手，防滚动翻页误触出水
+      pending = { x: e.clientX, y: e.clientY, t: Date.now(), id: e.pointerId };
+      return;
+    }
+    injectAt(e.clientX, e.clientY);
+  }
+
+  function onPointerUp(e) {
+    if (!pending || e.pointerId !== pending.id) return;
+    var dx = e.clientX - pending.x, dy = e.clientY - pending.y;
+    var dt = Date.now() - pending.t;
+    if (dx * dx + dy * dy < 12 * 12 && dt < 300) {
+      injectAt(e.clientX, e.clientY);   // 是「点」不是「滑」才出水
+    }
+    pending = null;
+  }
+
+  function onPointerCancel(e) {
+    if (pending && e.pointerId === pending.id) pending = null;
+  }
+
+  function onVisibility() {
+    if (document.hidden) {
+      if (running) { caf(rafId); running = false; }
+    } else {
+      clearWaves();
+    }
+  }
+
+  /* ---------------- 启动 ---------------- */
+  function resize() {
+    cssW = window.innerWidth;
+    cssH = window.innerHeight;
+    dpr  = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width  = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    W = Math.max(4, Math.round(cssW / SCALE));
+    H = Math.max(4, Math.round(cssH / SCALE));
+    cellW = cssW / W;
+    cellH = cssH / H;
+
+    var len = W * H;
+    h      = new Float32Array(len);
+    hPrev  = new Float32Array(len);
+    hNext  = new Float32Array(len);
+
+    offCanvas.width  = W;
+    offCanvas.height = H;
+    imgData = offCtx.createImageData(W, H);
+    u32Data = new Uint32Array(imgData.data.buffer);
+    lastClick = null;
+
+    // 网格变了，掩膜作废，下次激活重建
+    reef = occ = reefCells = null;
+    reefCellsLen = 0; maskScrollY = -1;
+  }
+
+  function boot() {
+    canvas = document.createElement('canvas');
+    canvas.className = 'ripple-canvas';
+    document.body.appendChild(canvas);
+    ctx = canvas.getContext('2d');
+
+    offCanvas = document.createElement('canvas');
+    offCtx = offCanvas.getContext('2d');
+
+    DEBUG = window.__rippleDebug === true;
+
+    resize();
+    window.addEventListener('resize', resize);
+    document.addEventListener('pointerdown', onPointerDown, { passive: true });
+    document.addEventListener('pointerup', onPointerUp, { passive: true });
+    document.addEventListener('pointercancel', onPointerCancel, { passive: true });
+    document.addEventListener('visibilitychange', onVisibility);
+
+    // 字体加载完毕改变字形 → 重建掩膜（懒构建下通常无需，仅防波纹存活期间字体就绪）
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(function () {
+        if (running || DEBUG) buildMasks();
+      });
+    }
+
+    if (DEBUG) {   // 调试模式：常驻掩膜 + 常开循环 + 徽标（正常模式零影响）
+      buildMasks();
+      ensureRunning();
+      var badge = document.createElement('div');
+      badge.className = 'ripple-debug-badge';
+      badge.textContent = 'RIPPLE DEBUG';
+      document.body.appendChild(badge);
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+})();
+</script>
